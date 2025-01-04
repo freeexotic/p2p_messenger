@@ -9,19 +9,24 @@
 #include <unistd.h>
 #include <algorithm>
 #include <arpa/inet.h>
+#include <unordered_map>
 
 class client : public ClientBase
 {
 public:
-    client(std::string username_, std::string ip_, std::string port_, bool mode);
+    client(std::string username_, std::string ip_, std::uint16_t port_, bool mode);
 
-    void CreateSocet();
+    void CreatListeneSocet();
+    void ConnectClient();
+    void AcceptClient();
+    void ReceiveContent(int ClientSocet);
 
 private:
     ClientNode* node_ = nullptr;
     ClientBase* base_ = nullptr;
 
-    int client_socet_listen;
-    sockaddr_in socet_struct{};
+    std::unordered_map<std::string, int> socet_map;
+    int socet_listen;
+    sockaddr_in socet_listen_struct{};
 };
 
