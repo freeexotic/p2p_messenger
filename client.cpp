@@ -8,10 +8,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h> // Для структуры sockaddr_in и констант протоколов.
 #include <unistd.h>
-#include <algorithm>
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <functional>
+#include <sstream>
 
 client::client(std::string username_, std::string ip_, std::uint16_t port_, bool mode){
     if (mode == true){
@@ -25,7 +25,7 @@ client::client(std::string username_, std::string ip_, std::uint16_t port_, bool
     }
 }
 
-void client::CreatListeneSocet(){
+void client::CreatListeneSocket(){
     if (node_ == nullptr){
         std::cout << "Client port and ip are not specified";
         return;
@@ -76,7 +76,6 @@ void client::CreatListeneSocet(){
                 // Произошла иная ошибка подключения
             }
         }
-
         std::thread(&client::ReceiveContent, this, std::ref(accept_client_socet)).detach();
 
     }
@@ -107,14 +106,63 @@ void client::ConnectClient(){
     key = ip + std::to_string(port);
     socet_map[key] = new_client_socet;
 // добавление клиента в список сокетов, чтобы можно было к нему обращаться
+
+    SendInfo(new_client_socet);
+// отправление информации о себе для других клиентов
+}
+
+
+
+void client::SendInfo(int new_client_socet){
+    int attempts = 0;
+    std::string answer_to_client = "01010101011 " + node_->ip_ + " " + std::to_string(node_->port_) + " " + node_->username_;
+    while(attempts < 30){
+        // Отправляем сообщение с указанием корректной длины строки
+        ssize_t bytes_sent = send(new_client_socet, answer_to_client.c_str(), answer_to_client.size(), MSG_NOSIGNAL);
+
+        if (bytes_sent == -1) {
+            perror("Failed to send message to client");
+            attempts++;
+            continue;
+        }
+        else{
+            return;
+        }
+        close(new_client_socet);
+        perror("Error connecting to the client, try again later");
+    }
 }
 
 void client::AcceptClient(){
 
 }
 
-void client::ReceiveContent(int client_socet){
-    while(true){
 
-    }
+
+void client::ReceiveContent(int client_socket){
+    char buffer[1024];
+    std::string buffer_s;
+    std::string word;
+    while (true) {
+        memset(buffer, 0, sizeof(buffer));
+        int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0); // получение данных от клиента
+
+        if (bytes_received <= 0) {
+            close(client_socket);
+            // реализовать удаление отключенных клиентов
+//            RemoveClient()
+            break;
+        } // обработка ситуации, если клиент отключился или произошла ошибка и передалось 0 или меньше байтов информации
+
+        buffer_s = buffer;
+        std::stringstream str_s(buffer);
+
+        while(getline(str_s, word, ' ')){
+            if(word == "01010101011"){
+
+            }
+        }
+
+        std::cout << "Received: " << buffer << std::endl;
+        }
 }

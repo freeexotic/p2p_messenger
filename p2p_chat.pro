@@ -11,3 +11,6 @@ SOURCES += \
 HEADERS += \
     client.hpp \
     clientbase.hpp
+
+DISTFILES += \
+    README.md

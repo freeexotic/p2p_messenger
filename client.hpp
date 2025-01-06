@@ -15,18 +15,38 @@ class client : public ClientBase
 {
 public:
     client(std::string username_, std::string ip_, std::uint16_t port_, bool mode);
+    // создается клиент в зависимости от mode, и либо подключается к дургому клиенту и принимает все данные о других клиентах,
+    // либо сощдает СlientBase и начинает прослушивать сокет, отвечающий за подключение
 
-    void CreatListeneSocet();
+    void CreatListeneSocket();
+    // создает сокет прослушивания
+
     void ConnectClient();
+    // подключается к клиенту
+    // используется при подключении к чату, когда происходит последовательное подключение ко всем клиентам
+    // или используется, когда подключается новый клиент
+
+
     void AcceptClient();
-    void ReceiveContent(int ClientSocet);
+    // Обрабатывает подключение клиента
+
+    void ReceiveContent(int ClientSocket);
+    // Принимает данные с сокета
+
+private:
+    void SendInfo(int client_socket);
+    void GetInfo(std::string);
+
 
 private:
     ClientNode* node_ = nullptr;
     ClientBase* base_ = nullptr;
 
     std::unordered_map<std::string, int> socet_map;
+    // содержит соотношение ip:port и сокет
     int socet_listen;
+    // сокет, отвечающий за прослушивание
     sockaddr_in socet_listen_struct{};
+    // содержит информацию о сокете прослушивания
 };
 

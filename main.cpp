@@ -1,7 +1,7 @@
 #include <iostream>
 #include <clientbase.hpp>
-
-using namespace std;
+#include <sstream>
+#include <string>
 
 int main()
 {
@@ -9,7 +9,6 @@ int main()
     int answer;
     std::cin >> answer;
     bool mode;
-
     switch(answer){
     case 1:
         std::cout << "Ответ 1" << std::endl;
