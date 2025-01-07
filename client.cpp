@@ -2,8 +2,6 @@
 #include <string>
 #include <iostream>
 #include <thread>
-#include <vector>
-#include <mutex>
 #include <cstring> // для обработки строк
 #include <sys/socket.h>
 #include <netinet/in.h> // Для структуры sockaddr_in и констант протоколов.
@@ -16,11 +14,13 @@
 client::client(std::string username_, std::string ip_, std::uint16_t port_, bool mode){
     if (mode == true){
         *node_ = CreateClient(username_, ip_, port_);
+        node_->socket_to_send_ = -1;
         *base_ = ClientBase(username_, ip_, port_);
         // реализовать оповещение о подключении - взаимодействие с пользователями
     }
     else{
         *node_ = CreateClient(username_, ip_, port_);
+        node_->socket_to_send_ = -1;
         // реализовать подключение к другому клиенту(серверу)
     }
 }
@@ -113,24 +113,9 @@ void client::ConnectClient(){
 
 
 
-void client::SendInfo(int new_client_socet){
-    int attempts = 0;
+void client::SendInfo(int& new_client_socet){
     std::string answer_to_client = "01010101011 " + node_->ip_ + " " + std::to_string(node_->port_) + " " + node_->username_;
-    while(attempts < 30){
-        // Отправляем сообщение с указанием корректной длины строки
-        ssize_t bytes_sent = send(new_client_socet, answer_to_client.c_str(), answer_to_client.size(), MSG_NOSIGNAL);
-
-        if (bytes_sent == -1) {
-            perror("Failed to send message to client");
-            attempts++;
-            continue;
-        }
-        else{
-            return;
-        }
-        close(new_client_socet);
-        perror("Error connecting to the client, try again later");
-    }
+    SendMessage(new_client_socet, answer_to_client);
 }
 
 void client::AcceptClient(){
@@ -149,20 +134,68 @@ void client::ReceiveContent(int client_socket){
 
         if (bytes_received <= 0) {
             close(client_socket);
-            // реализовать удаление отключенных клиентов
-//            RemoveClient()
+            base_->RemoveClient(client_socket);
             break;
         } // обработка ситуации, если клиент отключился или произошла ошибка и передалось 0 или меньше байтов информации
 
         buffer_s = buffer;
-        std::stringstream str_s(buffer);
-
-        while(getline(str_s, word, ' ')){
-            if(word == "01010101011"){
-
-            }
+        if(strncmp(buffer, "01010101011", 11) == 0 ){
+            std::string message(buffer + 12, bytes_received - 12);
+            GetInfo(message);
+            ClientsInfo(client_socket);
+            continue;
         }
+
 
         std::cout << "Received: " << buffer << std::endl;
         }
+}
+
+void client::GetInfo(const std::string& message) {
+    std::istringstream str_s(message);
+    std::string ip;
+    std::string username;
+    std::uint16_t port;
+
+    // Чтение данных из строки
+    while (str_s >> ip >> port >> username) {
+        // Создание клиента и добавление в базу
+        try {
+            ClientNode node = CreateClient(username, ip, port);
+            base_->AddClient(node);
+        } catch (const std::exception& e) {
+            std::cerr << "Error adding client: " << e.what() << std::endl;
+        }
+    }
+    // Проверка состояния потока после завершения обработки
+    if (!str_s.eof()) {
+        std::cerr << "Warning." << std::endl;
+    }
+    return;
+}
+
+void client::ClientsInfo(int& client_socket){
+    std::string message = base_->MakePackage();
+    SendMessage(client_socket, message);
+    return;
+}
+
+void client::SendMessage(int socket, const std::string& message){
+    int attempts = 0;
+    while(attempts < 30){
+        // Отправляем сообщение с указанием корректной длины строки
+        ssize_t bytes_sent = send(socket, message.c_str(), message.size(), MSG_NOSIGNAL);
+
+        if (bytes_sent == -1) {
+            perror("Failed to send message to client");
+            attempts++;
+            continue;
+        }
+        else{
+            return;
+        }
+        close(socket);
+        perror("Error connecting to the client, try again later");
+    }
+    return;
 }

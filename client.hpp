@@ -34,8 +34,10 @@ public:
     // Принимает данные с сокета
 
 private:
-    void SendInfo(int client_socket);
-    void GetInfo(std::string);
+    void SendInfo(int&);
+    void GetInfo(const std::string&);
+    void ClientsInfo(int&);
+    void SendMessage(int, const std::string&);
 
 
 private:

@@ -1,5 +1,4 @@
 #include "clientbase.hpp"
-#include <algorithm>
 #include <iostream>
 
 
@@ -39,8 +38,37 @@ int ClientBase::RemoveClient(std::string ip, std::uint16_t port){
     return 1;
 }
 
+int ClientBase::RemoveClient(int socket){
+    for (auto client : usersbase){
+        if (client.second.socket_to_send_ == socket){
+            std::string key = client.second.ip_ + std::to_string(client.second.port_);
+            usersbase.erase(std::move(key));
+            break;
+        }
+    }
+    return 1;
+}
+
 void ClientBase::test(){
     for (auto key : usersbase){
         std::cout << key.second.username_ << std::endl;
     }
+}
+
+std::string ClientBase::MakePackage(){
+    std::string message = "01010101001 ";
+    for (auto client : usersbase){
+        if(client.second.socket_to_send_ == -1){
+            continue;
+        }
+        else{
+            message += client.second.ip_;
+            message += " ";
+            message += std::to_string(client.second.port_);
+            message += " ";
+            message += client.second.username_;
+            message += " ";
+        }
+    }
+    return message;
 }

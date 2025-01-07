@@ -9,7 +9,7 @@ struct ClientNode{
     std::string username_;
     std::string ip_;
     std::uint16_t port_;
-    int socket_to_send_ = -1;
+    int socket_to_send_ = -2;
 };
 
 class ClientBase
@@ -32,6 +32,10 @@ public:
 
     int RemoveClient(std::string ip_, std::uint16_t port);
     // Удаляет клиента из ClietBase
+    int RemoveClient(int socket);
+
+    // Создает пакет с информацие о всех клиентах
+    std::string MakePackage();
 
     void test();
 
