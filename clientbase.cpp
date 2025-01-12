@@ -11,16 +11,17 @@ ClientBase::ClientBase(std::string username, std::string ip, std::uint16_t port)
     usersbase[std::move(key)] = std::move(*first_client);
 }
 
-ClientNode ClientBase::CreateClient(std::string username, std::string ip_, std::uint16_t port){
+ClientNode ClientBase::CreateClient(std::string username, std::string ip_, std::uint16_t port, int socket){
     ClientNode* new_client = new ClientNode;
     new_client->username_ = std::move(username);
     new_client->ip_ = std::move(ip_);
     new_client->port_ = std::move(port);
+    new_client->socket_to_send_ = std::move(socket);
     return *new_client;
 }
 
-int ClientBase::AddClient(std::string username_, std::string ip_, std::uint16_t port_) {
-    ClientNode client = CreateClient(username_, ip_, port_);
+int ClientBase::AddClient(std::string username_, std::string ip_, std::uint16_t port_, int socket_) {
+    ClientNode client = CreateClient(username_, ip_, port_, socket_);
     std::string key = ip_ + std::to_string(port_);
     usersbase[std::move(key)] = std::move(client);
     return 1;
@@ -55,10 +56,10 @@ void ClientBase::test(){
     }
 }
 
-std::string ClientBase::MakePackage(){
+std::string ClientBase::MakePackage(const int socket){
     std::string message = "01010101001 ";
     for (auto client : usersbase){
-        if(client.second.socket_to_send_ == -1){
+        if(client.second.socket_to_send_ == -1 || client.second.socket_to_send_ == socket ){
             continue;
         }
         else{
@@ -71,4 +72,9 @@ std::string ClientBase::MakePackage(){
         }
     }
     return message;
+}
+
+void ClientBase::RenameClient(const std::string key, const std::string name){
+    usersbase[key].username_ = name;
+    return;
 }

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <vector>
 #include <string>
 #include <cstdint>
 #include <unordered_map>
@@ -21,10 +20,10 @@ public:
     ClientBase(std::string username, std::string ip_, std::uint16_t port);
     // Создает вектор с описанием пользователей и добавлеяет информацию о первом пользователе
 
-    ClientNode CreateClient(std::string username, std::string ip_, std::uint16_t port);
+    ClientNode CreateClient(std::string username, std::string ip_, std::uint16_t port, int socket = -2);
     // Создает node с информацией о пользователе
 
-    int AddClient(std::string username, std::string ip_, std::uint16_t port);
+    int AddClient(std::string username, std::string ip_, std::uint16_t port, int socket = -2);
     // Создает и добавляет клиента в вектор клиентов
 
     int AddClient(ClientNode client);
@@ -35,7 +34,10 @@ public:
     int RemoveClient(int socket);
 
     // Создает пакет с информацие о всех клиентах
-    std::string MakePackage();
+    std::string MakePackage(const int socket);
+
+    // Переименовать
+    void RenameClient(const std::string key, const std::string name);
 
     void test();
 
