@@ -14,9 +14,10 @@
 class client : public ClientBase
 {
 public:
-    client(std::string username_, std::string ip_, std::uint16_t port_, bool mode);
+    client(std::string username_, std::string ip_, std::uint16_t port_, int mode);
     // создается клиент в зависимости от mode, и либо подключается к дургому клиенту и принимает все данные о других клиентах,
     // либо сощдает СlientBase и начинает прослушивать сокет, отвечающий за подключение
+    ~client();
 
 private:
 
@@ -45,7 +46,7 @@ private:
     void GetInfo(const std::string&);
     // Обрабатывает получаемую информацию и добавляет новые ClientNode в ClientBase
 
-    void ClientsInfo(const int&) const;
+    void ClientsInfo(const int&);
     // Создает пакет, содержащий информацию о всех клиентах и отпраляет его
 
     void SendMessage(const int, const std::string&) const;
@@ -54,24 +55,26 @@ private:
     void SendName(const int socket) const;
     // Отправляет имя и подтверждает подключение
 
-    void ConnectFromBase() const;
-    // Подключиться к всем клиентам из ClientBase, которые не имеют сокета
-
 
 private:
-    ClientNode* node_ = nullptr;
+    ClientNode node_;
     // Структура, содержащая информацию о клиенте
 
-    ClientBase* base_ = nullptr;
+    ClientBase base_;
     // Класс, хранящий ClientNode и позволяющий работать с ними
 
-    std::unordered_map<std::string, int> socet_map;
-    // содержит соотношение ip:port и сокет
+    // std::unordered_map<std::string, int> socet_map;
+    // // содержит соотношение ip:port и сокет
 
     int socket_listen;
     // сокет, отвечающий за прослушивание
 
     sockaddr_in socket_listen_struct{};
     // содержит информацию о сокете прослушивания
+
+    bool run_listen_loop = false;
+
+
+    std::thread listen_thread;
 };
 

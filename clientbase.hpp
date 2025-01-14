@@ -4,12 +4,13 @@
 #include <cstdint>
 #include <unordered_map>
 
-struct ClientNode{
+struct ClientNode {
     std::string username_;
     std::string ip_;
     std::uint16_t port_;
     int socket_to_send_ = -2;
 };
+
 
 class ClientBase
 {
@@ -47,3 +48,21 @@ private:
 };
 
 
+
+class ClientBase {
+public:
+    ClientBase() = default;
+    ClientBase(std::string username, std::string ip_, std::uint16_t port);
+
+    ClientNode CreateClient(std::string username, std::string ip_, std::uint16_t port, int socket = -2);
+    int AddClient(std::string username, std::string ip_, std::uint16_t port, int socket = -2);
+    int AddClient(ClientNode client);
+    int RemoveClient(std::string ip_, std::uint16_t port);
+    int RemoveClient(int socket);
+    std::string MakePackage(const int socket);
+    void RenameClient(const std::string key, const std::string name);
+    void PrintClients(); // Для отладки
+
+private:
+    std::unordered_map<std::string, ClientNode> usersbase;
+};

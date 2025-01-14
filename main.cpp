@@ -1,30 +1,41 @@
 #include <iostream>
-#include <clientbase.hpp>
+#include "client.hpp"
 #include <sstream>
 #include <string>
 
-int main()
-{
-    std::cout << "[1] - создать чат" << std::endl << "[2] - присоединиться к чату" << std::endl;
-    int answer;
-    std::cin >> answer;
-    bool mode;
-    char sentenc[19] = "01010101011 123";
-    std::string sentec1 = sentenc;
-    if(sentec1.substr(0,11) == "01010101011"){
-        std::cout << sentec1.substr(12) << std::endl;
+int main() {
+    std::string ip;
+    std::uint16_t port;
+    std::string username;
+
+    // Ввод данных пользователя
+    std::cout << "Введите Ваш IP в формате: 127.0.0.1" << std::endl;
+    std::cin >> ip;
+
+    std::cout << "Введите Ваш port в формате: 1234" << std::endl;
+    std::cin >> port;
+
+    std::cout << "Введите Ваш username" << std::endl;
+    std::cin >> username;
+
+    int mode;
+    // Ввод режима работы
+    std::cout << "[1] - создать чат\n[2] - присоединиться к чату" << std::endl;
+    std::cin >> mode;
+
+    // Проверка ввода
+    if (std::cin.fail() || (mode != 1 && mode != 2)) {
+        std::cerr << "Значение некорректно - перезапустите приложение!" << std::endl;
+        return 1;
     }
-    switch(answer){
-    case 1:
-        std::cout << "Ответ 1" << std::endl;
-        mode = true;
-        break;
-    case 2:
-        std::cout << "Ответ 2" << std::endl;
-        mode = false;
-        break;
-    default:
-        std::cout << "Значение некорректно - перезапустите приложение!";
-        break;
+
+    // Создание клиента
+    client c(username, ip, port, mode);
+
+    // Основной цикл программы
+    while (true) {
+        // Логика программы - обработка пользовательских команд
     }
+
+    return 0;
 }
