@@ -21,7 +21,7 @@ public:
 
 private:
 
-    void CreatListeneSocket();
+    void CreatListeneSocket(int mode);
     // создает сокет прослушивания
 
     void ConnectClient();
@@ -77,4 +77,5 @@ private:
 
     std::thread listen_thread;
 };
+
 

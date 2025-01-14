@@ -40,29 +40,9 @@ public:
     // Переименовать
     void RenameClient(const std::string key, const std::string name);
 
-    void test();
-
-private:
-
-    std::unordered_map<std::string, ClientNode> usersbase;
-};
-
-
-
-class ClientBase {
-public:
-    ClientBase() = default;
-    ClientBase(std::string username, std::string ip_, std::uint16_t port);
-
-    ClientNode CreateClient(std::string username, std::string ip_, std::uint16_t port, int socket = -2);
-    int AddClient(std::string username, std::string ip_, std::uint16_t port, int socket = -2);
-    int AddClient(ClientNode client);
-    int RemoveClient(std::string ip_, std::uint16_t port);
-    int RemoveClient(int socket);
-    std::string MakePackage(const int socket);
-    void RenameClient(const std::string key, const std::string name);
     void PrintClients(); // Для отладки
 
 private:
+
     std::unordered_map<std::string, ClientNode> usersbase;
 };

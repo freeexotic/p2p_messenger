@@ -15,32 +15,21 @@
 
 
 
-client::client(std::string username_, std::string ip_, std::uint16_t port_, int mode) {
+client::client(std::string username_, std::string ip_, std::uint16_t port_, int mode) :
+    base_(username_, ip_, port_)
+{
     node_ = CreateClient(username_, ip_, port_);
     node_.socket_to_send_ = -1;
-    base_ = ClientBase(username_, ip_, port_);
 
     // Отладочный вывод значения mode
     std::cout << "Mode внутри конструктора: " << mode << std::endl;
 
     try {
-        if (mode == 1) {
-            std::cout << "Создание сокета для чата" << std::endl;
-            // Запуск потока прослушивания
-            listen_thread = std::thread(&client::CreatListeneSocket, this);
-            listen_thread.detach();
-        } else if (mode == 2) {
-            std::cout << "Создание сокета для чата и для прослушивания" << std::endl;
-            // Запуск потока прослушивания и подключения
-            listen_thread = std::thread(&client::CreatListeneSocket, this);
-            listen_thread.detach();
-            // Небольшая задержка перед подключением клиента
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            std::thread connect_thread(&client::ConnectClient, this);
-            connect_thread.detach();
-        } else {
-            throw std::invalid_argument("Некорректное значение mode");
+        if (mode != 1 && mode && mode != 2){
+            std::cout << "Некорректное значение mode";
         }
+        listen_thread = std::thread(&client::CreatListeneSocket, this, std::ref(mode));
+        listen_thread.detach();
     } catch (const std::exception& e) {
         std::cerr << "Ошибка в конструкторе client: " << e.what() << std::endl;
     }
@@ -58,7 +47,7 @@ client::~client()
 }
 
 
-void client::CreatListeneSocket(){
+void client::CreatListeneSocket(int mode){
     std::cout << "Ожидание подключения ч0";
     socket_listen = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_listen < 0) {
@@ -93,14 +82,16 @@ void client::CreatListeneSocket(){
     fcntl(socket_listen, F_SETFL, flags | O_NONBLOCK);
     //Перевод сокета в неблокирующий режим
 
-    std::cout << "Ожидание подключения3";
+    if (mode == 2){
+        ConnectClient();
+    }
     while(true){
         int accept_client_socket = accept(socket_listen, nullptr, nullptr);
 
         if (accept_client_socket < 0){
             if( errno == EAGAIN || errno == EWOULDBLOCK){
-               // std::cout << "No incoming connections. Retrying..." << std::endl;
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                std::cout << "No incoming connections. Retrying..." << std::endl;
+                std::this_thread::sleep_for(std::chrono::seconds(5));
                 continue;
                 // Сообщаем о то, что нет ни одного соединения на подключение, ожидает 1 секунду перед проверкой
             }
@@ -112,7 +103,6 @@ void client::CreatListeneSocket(){
         }
         std::cout << "Подключислся новый пользователь!!!!";
         std::thread(&client::ReceiveContent, this, std::ref(accept_client_socket)).detach();
-
     }
 }
 
@@ -180,6 +170,7 @@ void client::ConnectWithoutAgreement(const std::string ip, const std::uint16_t p
 
 
 void client::SendInfo(const int& new_client_socket) const{
+    std::cout << "Информатция отправленна";
     std::string info = "01010101011 " + node_.ip_ + " " + std::to_string(node_.port_) + " " + node_.username_;
     SendMessage(new_client_socket, info);
 }
@@ -207,8 +198,10 @@ void client::AcceptClient(const int& socket, const std::string& message){
 
 
 void client::ReceiveContent(int client_socket){
+    std::cout << "Подключислся новый пользователь!!!!";
     char buffer[1024];
     while (true) {
+        std::cout << "Ожидание";
         memset(buffer, 0, sizeof(buffer));
         int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0); // получение данных от клиента
 
@@ -242,6 +235,7 @@ void client::ReceiveContent(int client_socket){
             // Добавление клиентов в ClientBase
         }
         else if (strncmp(buffer, "01010111011", 11) == 0 ){
+            std::cout << "Получил";
             std::string message(buffer + 12, bytes_received - 12);
             AcceptClient(client_socket, message);
         }
