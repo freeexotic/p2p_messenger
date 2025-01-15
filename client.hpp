@@ -55,6 +55,20 @@ private:
     void SendName(const int socket) const;
     // Отправляет имя и подтверждает подключение
 
+private:
+
+    void HandleAcceptClient(int client_socket, const char* buffer, int bytes_received);
+    // Выполняет подключение клиента
+
+    void HandleRenameClient(int client_socket, const char* buffer, int bytes_received);
+    // Подтверждение подключения и приянятие имени
+
+    void HandleAddClients(const char* buffer, int bytes_received);
+    // Добавление клиента
+
+    void HandleSimpleAccept(int client_socket, const char* buffer, int bytes_received);
+    // Простое подключение клиента
+
 
 private:
     ClientNode node_;

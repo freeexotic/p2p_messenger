@@ -11,6 +11,7 @@
 #include <functional>
 #include <sstream>
 #include <chrono>
+#include <poll.h>
 
 
 
@@ -47,125 +48,153 @@ client::~client()
 }
 
 
-void client::CreatListeneSocket(int mode){
-    std::cout << "Ожидание подключения ч0";
+void client::CreatListeneSocket(int mode) {
+    std::cout << "Ожидание подключения: начало" << std::endl;
+
+    // Создание сокета
     socket_listen = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_listen < 0) {
-        perror("Socket creation failed in clien");
+        perror("Ошибка создания сокета");
         return;
-    }    // создание сокета
-    std::cout << "Ожидание подключения ч1";
-    // sockaddr_in socket_listen_struct{}; - создается структура, которая будет содержать ip port (в hpp файле)
-    socket_listen_struct.sin_family = AF_INET; // параметр, что используется протокол IPv4
-    socket_listen_struct.sin_port = htons(node_.port_); // задается конкретный порт
-    inet_pton(AF_INET, node_.ip_.c_str(), &socket_listen_struct.sin_addr); // задается конкретный ip
+    }
 
-    if(bind(socket_listen, (struct sockaddr*)&socket_listen_struct, sizeof(socket_listen_struct)) < 0){
-        perror("Bind faild");
+    // Настройка структуры сокета
+    socket_listen_struct.sin_family = AF_INET; // Используется IPv4
+    socket_listen_struct.sin_port = htons(node_.port_); // Установка порта
+    inet_pton(AF_INET, node_.ip_.c_str(), &socket_listen_struct.sin_addr); // Установка IP-адреса
+
+    // Привязка сокета
+    if (bind(socket_listen, reinterpret_cast<struct sockaddr*>(&socket_listen_struct), sizeof(socket_listen_struct)) < 0) {
+        perror("Ошибка привязки сокета");
         close(socket_listen);
         socket_listen = -1;
-        exit(EXIT_FAILURE);
+        return;
     }
-    // разобрать вывод ошибки !!!!!!!!!!!!!!!!!!!!!!!!!!
-    std::cout << "Ожидание подключения ч2";
-    // натройка соекта
+
+    // Перевод сокета в режим прослушивания
     if (listen(socket_listen, 5) < 0) {
-        perror("Listen failed");
+        perror("Ошибка установки режима прослушивания");
         close(socket_listen);
         socket_listen = -1;
-        exit(EXIT_FAILURE);
+        return;
     }
-    // Создается очередь максимальной длиной в 5 клиентов
-    // сокер в режиме прослушивания
 
+    // Перевод сокета в неблокирующий режим
     int flags = fcntl(socket_listen, F_GETFL, 0);
-    fcntl(socket_listen, F_SETFL, flags | O_NONBLOCK);
-    //Перевод сокета в неблокирующий режим
+    if (flags == -1 || fcntl(socket_listen, F_SETFL, flags | O_NONBLOCK) == -1) {
+        perror("Ошибка перевода сокета в неблокирующий режим");
+        close(socket_listen);
+        socket_listen = -1;
+        return;
+    }
 
-    if (mode == 2){
+    std::cout << "Сокет успешно настроен и ожидает подключения" << std::endl;
+
+    // Если режим подключения клиента (mode == 2), вызываем ConnectClient()
+    if (mode == 2) {
         ConnectClient();
     }
-    while(true){
+
+    run_listen_loop = true;
+
+    // Основной цикл обработки подключений
+    while (run_listen_loop) {
         int accept_client_socket = accept(socket_listen, nullptr, nullptr);
 
-        if (accept_client_socket < 0){
-            if( errno == EAGAIN || errno == EWOULDBLOCK){
-                std::cout << "No incoming connections. Retrying..." << std::endl;
-                std::this_thread::sleep_for(std::chrono::seconds(5));
+        if (accept_client_socket < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                std::this_thread::sleep_for(std::chrono::seconds(5)); // Задержка перед повторной проверкой
                 continue;
-                // Сообщаем о то, что нет ни одного соединения на подключение, ожидает 1 секунду перед проверкой
-            }
-            else{
-                perror("Accept error");
+            } else {
+                perror("Ошибка при принятии подключения");
                 break;
-                // Произошла иная ошибка подключения
             }
         }
-        std::cout << "Подключислся новый пользователь!!!!";
+
+        std::cout << "Подключился новый пользователь!" << std::endl;
+
+        // Обработка нового подключения в отдельном потоке
         std::thread(&client::ReceiveContent, this, std::ref(accept_client_socket)).detach();
     }
+
+    close(socket_listen); // Закрытие сокета после завершения работы
 }
 
 
 
+
 void client::ConnectClient() {
-    std::cout << "Введите ip и порт в формате: 127.0.0.1 1234" << std::endl;
+    std::cout << "Введите IP и порт для подключения (например: 127.0.0.1 1234): ";
+
     std::string ip;
-    std::uint16_t port;
+    uint16_t port;
     std::cin >> ip >> port;
-// Вводится порт и ip клиента, которому необходимо подключиться
-    std::cout << "Подключение произошло";
+
     int new_client_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (new_client_socket < 0) {
-        perror("Socket creation failed in ConnectClient");
+        perror("Ошибка создания сокета для подключения");
         return;
     }
-    std::cout << "Подключение произошло";
+
     struct sockaddr_in new_client_socket_struct{};
     new_client_socket_struct.sin_family = AF_INET;
     new_client_socket_struct.sin_port = htons(port);
-    inet_pton(AF_INET, ip.c_str(), &new_client_socket_struct.sin_addr);
 
-    if( connect(new_client_socket, (struct sockaddr*)&new_client_socket_struct, sizeof(new_client_socket_struct) ) < 0 ) {
-        perror("Connect to new client failed");
+    if (inet_pton(AF_INET, ip.c_str(), &new_client_socket_struct.sin_addr) <= 0) {
+        perror("Некорректный IP-адрес");
         close(new_client_socket);
         return;
     }
-    // Сделать, чтобы если было нарушено подключение(например очередь слишком длинная) , то клиент пробовал бы подключиться через какое-то время
-    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-// добавление клиента в ClientBase
+    if (connect(new_client_socket, reinterpret_cast<struct sockaddr*>(&new_client_socket_struct), sizeof(new_client_socket_struct)) < 0) {
+        perror("Ошибка подключения к клиенту");
+        close(new_client_socket);
+        return;
+    }
+
+    std::cout << "Успешное подключение к клиенту!" << std::endl;
+
+    // Добавление клиента в базу данных
     ClientNode new_client = CreateClient("noname", ip, port, new_client_socket);
     base_.AddClient(new_client);
 
- // отправление информации о себе для других клиентов
+    // Отправка информации о себе новому клиенту
     SendInfo(new_client.socket_to_send_);
 }
 
 
 
-void client::ConnectWithoutAgreement(const std::string ip, const std::uint16_t port, const std::string username){
+void client::ConnectWithoutAgreement(const std::string ip, const uint16_t port, const std::string username) {
     int new_client_socket = socket(AF_INET, SOCK_STREAM, 0);
+
     if (new_client_socket < 0) {
-        perror("Socket creation failed in ConnectWithoutAgreement");
+        perror("Ошибка создания сокета для подключения без согласования");
         return;
     }
 
     struct sockaddr_in new_client_socket_struct{};
     new_client_socket_struct.sin_family = AF_INET;
     new_client_socket_struct.sin_port = htons(port);
-    inet_pton(AF_INET, ip.c_str(), &new_client_socket_struct.sin_addr);
 
-    if( connect(new_client_socket, (struct sockaddr*)&new_client_socket_struct, sizeof(new_client_socket_struct) ) < 0 ) {
-        perror("Connect to new client failed");
+    if (inet_pton(AF_INET, ip.c_str(), &new_client_socket_struct.sin_addr) <= 0) {
+        perror("Некорректный IP-адрес");
         close(new_client_socket);
         return;
     }
+
+    if (connect(new_client_socket, reinterpret_cast<struct sockaddr*>(&new_client_socket_struct), sizeof(new_client_socket_struct)) < 0) {
+        perror("Ошибка подключения к клиенту без согласования");
+        close(new_client_socket);
+        return;
+    }
+
     ClientNode new_client = CreateClient(username, ip, port, new_client_socket);
 
     base_.AddClient(new_client);
+
     SendInfoWithoutAgreement(new_client_socket);
 }
+
 
 
 
@@ -197,51 +226,104 @@ void client::AcceptClient(const int& socket, const std::string& message){
 
 
 
-void client::ReceiveContent(int client_socket){
-    std::cout << "Подключислся новый пользователь!!!!";
+void client::ReceiveContent(int client_socket) {
+    std::cout << "Клиент подключился, ожидание сообщений..." << std::endl;
+
+    // Структура для опроса сокета
+    struct pollfd pfd;
+    pfd.fd = client_socket; // Указываем сокет
+    pfd.events = POLLIN; // Будем проверять готовность на чтение
+
     char buffer[1024];
+
     while (true) {
-        std::cout << "Ожидание";
-        memset(buffer, 0, sizeof(buffer));
-        int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0); // получение данных от клиента
-
-        if (bytes_received <= 0) {
-            close(client_socket);
-            base_.RemoveClient(client_socket);
+        // Ожидаем данных в течение 1000 мс
+        int poll_result = poll(&pfd, 1, 1000);
+        if (poll_result < 0) {
+            perror("poll error");
             break;
-        } // обработка ситуации, если клиент отключился или произошла ошибка и передалось 0 или меньше байтов информации
-
-        if(strncmp(buffer, "01010101011", 11) == 0 ){
-            std::string message(buffer + 12, bytes_received - 12);
-            AcceptClient(client_socket, message);
-            SendName(client_socket);
-            ClientsInfo(client_socket);
-            std::cout << "send name";
+        } else if (poll_result == 0) {
+            // Нет данных, переходим на новую итерацию
             continue;
         }
-        else if(strncmp(buffer, "01010101111", 11) == 0 ){
-            std::string message(buffer + 12, bytes_received - 12);
-            std::istringstream str_s(message);
-            std::string ip;
-            std::string username;
-            std::string port;
-            str_s >> ip >> port >> username;
-            base_.RenameClient(ip + port, username);
-            // Подтверждение подключение и передача имени клиенту
-        }
-        else if(strncmp(buffer, "01010101001", 11) == 0 ){
-            std::string message(buffer + 12, bytes_received - 12);
-            GetInfo(message);
-            // Добавление клиентов в ClientBase
-        }
-        else if (strncmp(buffer, "01010111011", 11) == 0 ){
-            std::cout << "Получил";
-            std::string message(buffer + 12, bytes_received - 12);
-            AcceptClient(client_socket, message);
-        }
 
-        std::cout << "Received: " << buffer << std::endl;
+        // Если сокет готов на чтение, пробуем получить данные
+        if (pfd.revents & POLLIN) {
+            memset(buffer, 0, sizeof(buffer));
+            int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+
+            // Проверка на ошибки и отключение клиента
+            if (bytes_received < 0) {
+                // Для незначительных ошибок делаем паузу и пробуем снова
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    continue;
+                } else {
+                    perror("Ошибка при получении данных от клиента");
+                    break;
+                }
+            } else if (bytes_received == 0) {
+                std::cout << "Клиент отключился." << std::endl;
+                close(client_socket);
+                base_.RemoveClient(client_socket);
+                break;
+            }
+
+            // Обрабатываем полученное сообщение
+            std::string received_message(buffer, bytes_received);
+
+            if (strncmp(buffer, "01010101011", 11) == 0) {
+                HandleAcceptClient(client_socket, buffer, bytes_received);
+            } else if (strncmp(buffer, "01010101111", 11) == 0) {
+                HandleRenameClient(client_socket, buffer, bytes_received);
+            } else if (strncmp(buffer, "01010101001", 11) == 0) {
+                HandleAddClients(buffer, bytes_received);
+            } else if (strncmp(buffer, "01010111011", 11) == 0) {
+                HandleSimpleAccept(client_socket, buffer, bytes_received);
+            } else {
+                std::cout << "Получено сообщение: " << received_message << std::endl;
+            }
+        }
     }
+}
+
+
+void client::HandleAcceptClient(int client_socket, const char* buffer, int bytes_received) {
+    std::cout << "Обработка команды: отправка имени" << std::endl;
+
+    std::string message(buffer + 12, bytes_received - 12);
+    AcceptClient(client_socket, message);
+    SendName(client_socket);
+    ClientsInfo(client_socket);
+}
+
+void client::HandleRenameClient(int client_socket, const char* buffer, int bytes_received) {
+    std::cout << "Обработка команды: подтверждение и передача имени клиенту" << std::endl;
+
+    std::string message(buffer + 12, bytes_received - 12);
+    std::istringstream str_s(message);
+
+    std::string ip;
+    std::string username;
+    uint16_t port;
+
+    str_s >> ip >> port >> username;
+    base_.RenameClient(ip + std::to_string(port), username);
+}
+
+
+void client::HandleAddClients(const char* buffer, int bytes_received) {
+    std::cout << "Обработка команды: добавление клиентов" << std::endl;
+
+    std::string message(buffer + 12, bytes_received - 12);
+    GetInfo(message); // Добавление клиентов в ClientBase
+}
+
+void client::HandleSimpleAccept(int client_socket, const char* buffer, int bytes_received) {
+    std::cout << "Обработка команды: простое подтверждение подключения" << std::endl;
+
+    std::string message(buffer + 12, bytes_received - 12);
+    AcceptClient(client_socket, message);
 }
 
 
