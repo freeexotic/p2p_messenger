@@ -42,7 +42,7 @@ public:
 
     void PrintClients(); // Для отладки
 
-private:
-
     std::unordered_map<std::string, ClientNode> usersbase;
+
+private:
 };

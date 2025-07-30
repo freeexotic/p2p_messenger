@@ -26,8 +26,9 @@ client::client(std::string username_, std::string ip_, std::uint16_t port_, int 
     std::cout << "Mode внутри конструктора: " << mode << std::endl;
 
     try {
-        if (mode != 1 && mode && mode != 2){
-            std::cout << "Некорректное значение mode";
+        if (mode != 1 && mode != 2){
+            std::cout << "Некорректное значение mode" << std::endl;
+            return;
         }
         listen_thread = std::thread(&client::CreatListeneSocket, this, std::ref(mode));
         listen_thread.detach();
@@ -128,7 +129,13 @@ void client::ConnectClient() {
 
     std::string ip;
     uint16_t port;
-    std::cin >> ip >> port;
+    
+    if (!(std::cin >> ip >> port)) {
+        std::cerr << "Ошибка ввода IP и порта" << std::endl;
+        std::cin.clear();
+        std::cin.ignore(10000, '\n');
+        return;
+    }
 
     int new_client_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (new_client_socket < 0) {
@@ -280,8 +287,12 @@ void client::ReceiveContent(int client_socket) {
                 HandleAddClients(buffer, bytes_received);
             } else if (strncmp(buffer, "01010111011", 11) == 0) {
                 HandleSimpleAccept(client_socket, buffer, bytes_received);
+            } else if (strncmp(buffer, "MESSAGE", 7) == 0) {
+                std::string message(buffer + 8, bytes_received - 8);
+                std::cout << "\n" << message << std::endl;
+                std::cout << "Введите команду: " << std::flush;
             } else {
-                std::cout << "Получено сообщение: " << received_message << std::endl;
+                std::cout << "Получено неизвестное сообщение: " << received_message << std::endl;
             }
         }
     }
@@ -363,21 +374,41 @@ void client::ClientsInfo(const int& client_socket) {
 
 
 void client::SendMessage(const int socket, const std::string& message) const{
+    if (socket < 0) {
+        std::cerr << "Ошибка: недопустимый сокет" << std::endl;
+        return;
+    }
+    
     int attempts = 0;
-    while(attempts < 30){
-        // Отправляем сообщение с указанием корректной длины строки
+    const int max_attempts = 3;
+    
+    while(attempts < max_attempts){
         ssize_t bytes_sent = send(socket, message.c_str(), message.size(), MSG_NOSIGNAL);
 
         if (bytes_sent == -1) {
-            perror("Failed to send message to client");
-            attempts++;
-            continue;
-        }
-        else{
+            if (errno == EPIPE || errno == ECONNRESET) {
+                std::cerr << "Соединение разорвано для сокета " << socket << std::endl;
+                break;
+            } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                attempts++;
+                continue;
+            } else {
+                perror("Ошибка отправки сообщения");
+                attempts++;
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                continue;
+            }
+        } else if (bytes_sent == 0) {
+            std::cerr << "Соединение закрыто удаленной стороной" << std::endl;
+            break;
+        } else {
             return;
         }
-        close(socket);
-        perror("Error connecting to the client, try again later");
+    }
+    
+    if (attempts >= max_attempts) {
+        std::cerr << "Не удалось отправить сообщение после " << max_attempts << " попыток" << std::endl;
     }
 }
 
@@ -386,5 +417,78 @@ void client::SendMessage(const int socket, const std::string& message) const{
 void client::SendName(const int socket) const {
     std::string message = "01010101111 " + node_.ip_ + " " + std::to_string(node_.port_) + " " + node_.username_;
     SendMessage(socket, message);
+}
+
+void client::SendMessageToAll(const std::string& message) const {
+    std::string formatted_message = "MESSAGE " + node_.username_ + ": " + message;
+    for (const auto& [key, client_node] : base_.usersbase) {
+        if (client_node.socket_to_send_ != -1 && client_node.socket_to_send_ != -2) {
+            SendMessage(client_node.socket_to_send_, formatted_message);
+        }
+    }
+}
+
+void client::ShowConnectedClients() const {
+    std::cout << "\n=== Подключенные клиенты ===" << std::endl;
+    base_.PrintClients();
+    std::cout << "========================\n" << std::endl;
+}
+
+void client::ProcessUserInput() {
+    std::string input;
+    std::cout << "\nДоступные команды:" << std::endl;
+    std::cout << "/msg <сообщение> - отправить сообщение всем" << std::endl;
+    std::cout << "/list - показать подключенных клиентов" << std::endl;
+    std::cout << "/quit - выйти из программы" << std::endl;
+    std::cout << "\nВведите команду или сообщение: ";
+    
+    while (std::getline(std::cin, input)) {
+        if (input.empty()) {
+            std::cout << "Введите команду: ";
+            continue;
+        }
+        
+        if (input == "/quit") {
+            std::cout << "Выход из программы..." << std::endl;
+            Shutdown();
+            break;
+        } else if (input == "/list") {
+            ShowConnectedClients();
+        } else if (input.substr(0, 4) == "/msg") {
+            if (input.length() > 5) {
+                std::string message = input.substr(5);
+                SendMessageToAll(message);
+                std::cout << "Сообщение отправлено." << std::endl;
+            } else {
+                std::cout << "Использование: /msg <сообщение>" << std::endl;
+            }
+        } else {
+            SendMessageToAll(input);
+            std::cout << "Сообщение отправлено." << std::endl;
+        }
+        
+        std::cout << "Введите команду: ";
+    }
+}
+
+void client::Shutdown() {
+    std::cout << "Закрываем соединения..." << std::endl;
+    
+    // Закрываем все активные соединения
+    for (const auto& [key, client_node] : base_.usersbase) {
+        if (client_node.socket_to_send_ > 0) {
+            close(client_node.socket_to_send_);
+        }
+    }
+    
+    // Останавливаем поток прослушивания
+    run_listen_loop = false;
+    
+    // Закрываем сокет прослушивания
+    if (socket_listen > 0) {
+        close(socket_listen);
+    }
+    
+    std::cout << "Завершение работы завершено." << std::endl;
 }
 

@@ -55,6 +55,18 @@ private:
     void SendName(const int socket) const;
     // Отправляет имя и подтверждает подключение
 
+    void SendMessageToAll(const std::string& message) const;
+    // Отправляет сообщение всем подключенным клиентам
+
+    void ShowConnectedClients() const;
+    // Показывает список подключенных клиентов
+
+    void ProcessUserInput();
+    // Обрабатывает пользовательский ввод
+
+    void Shutdown();
+    // Корректное завершение работы клиента
+
 private:
 
     void HandleAcceptClient(int client_socket, const char* buffer, int bytes_received);
